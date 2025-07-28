@@ -1,0 +1,41 @@
+# docker-compose.yml
+
+version: '3.8' # Specifies the version of the Docker Compose file format
+
+services:
+  # The NestJS Backend Service
+  server:
+    build:
+      context: ./server # Look for the Dockerfile in the 'server' directory
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000" # Map port 3000 on your machine to port 3000 in the container
+    volumes:
+      - ./server:/usr/src/app # Mount the local 'server' directory into the container for live reloading
+      - /usr/src/app/node_modules # A trick to prevent local node_modules from overwriting container's
+    depends_on:
+      - db # Tell Docker to start the 'db' service before starting this 'server' service
+    environment:
+      # These variables will be available inside the NestJS application
+      # We will use these in our app.module.ts later to make it dynamic
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=password
+      - DATABASE_NAME=flash_groups_db
+
+  # The PostgreSQL Database Service
+  db:
+    image: postgres:15 # Use the official PostgreSQL version 15 image
+    ports:
+      - "5432:5432" # Map port 5432 on your machine to port 5432 in the container
+    environment:
+      # These variables are used by the PostgreSQL image to initialize the database
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=flash_groups_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data # Persist database data on your machine
+
+volumes:
+  postgres-data: # Defines the volume to ensure data is not lost when containers are stopped
