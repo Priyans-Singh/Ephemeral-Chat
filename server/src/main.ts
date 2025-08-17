@@ -8,6 +8,11 @@ async function bootstrap() {
   // Enable global validation pipe
   app.useGlobalPipes(new ValidationPipe());
 
+  app.enableCors({
+    origin: 'http://localhost:5173', // The address of your React app
+    credentials: true,
+  });
+
   await app.listen(3000);
 }
 bootstrap();
