@@ -4,14 +4,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { User } from './users/user.entity';
-import { AuthModule } from './auth/auth.module'; // <-- IMPORT AuthModule
-import { UsersModule } from './users/users.module'; // <-- IMPORT UsersModule
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { ChatModule } from './chat/chat.module'; // Import the ChatModule
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DATABASE_HOST || 'localhost',
@@ -22,8 +21,9 @@ import { UsersModule } from './users/users.module'; // <-- IMPORT UsersModule
       entities: [User],
       synchronize: true,
     }),
-    AuthModule,   // <-- ADD AuthModule HERE
-    UsersModule,  // <-- ADD UsersModule HERE
+    AuthModule,
+    UsersModule,
+    ChatModule, // Add the ChatModule to the imports array
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,47 +1,24 @@
-import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { ChatLayout } from "@/components/chat/ChatLayout";
+import ChatPanel from "@/components/chat/ChatPanel";
+import UserSidebar from "@/components/chat/UserSidebar";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 export const ChatPage = () => {
-  const { socket, logout } = useAuth();
-  const [isConnected, setIsConnected] = useState(false);
-
-  useEffect(() => {
-    if (socket) {
-      // Listen for the 'connect' event
-      socket.on('connect', () => {
-        setIsConnected(true);
-        console.log('Socket connected!', socket.id);
-      });
-
-      // Listen for the 'disconnect' event
-      socket.on('disconnect', () => {
-        setIsConnected(false);
-        console.log('Socket disconnected!');
-      });
-
-      // Clean up listeners when the component unmounts
-      return () => {
-        socket.off('connect');
-        socket.off('disconnect');
-      };
-    }
-  }, [socket]);
+  const { logout } = useAuth();
 
   return (
-    <div className="flex h-screen w-full flex-col items-center justify-center gap-4">
-      <h1 className="text-3xl font-bold">Welcome to the Chat!</h1>
-      <p className="text-lg">
-        Socket Status:
-        <span className={isConnected ? 'text-green-500' : 'text-red-500'}>
-          {isConnected ? ' Connected' : ' Disconnected'}
-        </span>
-      </p>
-      <button
-        onClick={logout}
-        className="rounded bg-indigo-600 px-4 py-2 text-white"
-      >
-        Logout
-      </button>
+    <div className="relative h-screen">
+      <ChatLayout
+        sidebar={<UserSidebar />}
+        mainPanel={<ChatPanel />}
+      />
+      {/* Keep the logout button for now, styled to be in the top right */}
+      <div className="absolute top-4 right-4">
+        <Button onClick={logout} variant="destructive">
+          Logout
+        </Button>
+      </div>
     </div>
   );
 };
