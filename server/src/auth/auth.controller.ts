@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard'; // Import the new guard
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -32,5 +33,12 @@ export class AuthController {
   googleAuthRedirect(@Request() req) {
     // Passport's GoogleStrategy populates req.user after a successful login
     return this.authService.googleLogin(req);
+  }
+
+  // --- NEW ENDPOINT TO GET USER PROFILE ---
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  getProfile(@Request() req) {
+    return req.user;
   }
 }

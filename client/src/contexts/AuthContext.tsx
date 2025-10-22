@@ -21,6 +21,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (token) {
+      // Fetch full user profile
+      const fetchUserProfile = async () => {
+        try {
+          const response = await apiClient.get('/auth/profile');
+          setUser(response.data);
+        } catch (error) {
+          console.error('Failed to fetch user profile:', error);
+          // Fallback to JWT decode
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            setUser({ id: payload.sub });
+          } catch (decodeError) {
+            console.error('Failed to decode JWT:', decodeError);
+            setUser(null);
+            logout();
+            return;
+          }
+        }
+      };
+
+      fetchUserProfile();
+
       // If a token exists, establish a WebSocket connection
       const newSocket = io('http://localhost:3000', {
         auth: {
@@ -34,6 +56,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return () => {
         newSocket.disconnect();
       };
+    } else {
+      setUser(null);
+      setSocket(null);
     }
   }, [token]);
 
@@ -67,6 +92,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.removeItem('token');
     if (socket) {
       socket.disconnect(); // Disconnect the socket on logout
+      setSocket(null);
     }
   };
 

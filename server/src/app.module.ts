@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { User } from './users/user.entity';
+import { Message } from './chat/entities/message.entity';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ChatModule } from './chat/chat.module'; // Import the ChatModule
@@ -18,7 +19,7 @@ import { ChatModule } from './chat/chat.module'; // Import the ChatModule
       username: process.env.DATABASE_USER || 'postgres',
       password: process.env.DATABASE_PASSWORD || 'password',
       database: process.env.DATABASE_NAME || 'flash_groups_db',
-      entities: [User],
+      entities: [User, Message],
       synchronize: true,
     }),
     AuthModule,
