@@ -2,7 +2,6 @@ import { ChatLayout } from "@/components/chat/ChatLayout";
 import ChatPanel from "@/components/chat/ChatPanel";
 import UserSidebar from "@/components/chat/UserSidebar";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
 import { useState, useEffect } from 'react';
 import { apiClient } from "@/lib/api";
 
@@ -26,9 +25,10 @@ interface Message {
 }
 
 export const ChatPage = () => {
-  const { logout, socket, user: currentUser } = useAuth();
+  const { socket, user: currentUser } = useAuth();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Receive message handler: only add if for active conversation
   useEffect(() => {
@@ -59,6 +59,8 @@ export const ChatPage = () => {
         } catch (error) {
           console.error("Failed to fetch chat history:", error);
         }
+      } else {
+        setMessages([]); // Clear messages when no user is selected
       }
     };
     fetchHistory();
@@ -79,13 +81,20 @@ export const ChatPage = () => {
     setSelectedUser(user);
   };
 
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(!isSidebarCollapsed);
+  };
+
   return (
     <div className="relative h-screen overflow-hidden">
       <ChatLayout
+        isCollapsed={isSidebarCollapsed}
         sidebar={
           <UserSidebar 
             onSelectUser={handleSelectUser}
             selectedUser={selectedUser}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={toggleSidebar}
           />
         }
         mainPanel={
@@ -96,12 +105,6 @@ export const ChatPage = () => {
           />
         }
       />
-      {/* Keep the logout button for now, styled to be in the top right */}
-      <div className="absolute top-4 right-4 z-10">
-        <Button onClick={logout} variant="destructive" size="sm">
-          Logout
-        </Button>
-      </div>
     </div>
   );
 };
