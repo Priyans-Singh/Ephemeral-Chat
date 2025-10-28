@@ -1,0 +1,94 @@
+/* Pulse animation for unread message indicators */
+@keyframes pulse-blue {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.unread-pulse {
+  animation: pulse-blue 2s infinite;
+}
+
+.unread-bounce {
+  animation: bounce-subtle 1s ease-in-out infinite;
+}
+
+.unread-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.unread-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(59, 130, 246, 0.1),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Hover effects for footer buttons */
+.footer-button-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.footer-button-hover:hover {
+  transform: translateY(-2px);
+}
+
+.footer-button-hover:active {
+  transform: translateY(0);
+}
+
+/* User item with unread messages */
+.user-item-unread {
+  position: relative;
+  overflow: hidden;
+}
+
+.user-item-unread::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(59, 130, 246, 0.1),
+    transparent
+  );
+  animation: shimmer 3s ease-in-out infinite;
+}
