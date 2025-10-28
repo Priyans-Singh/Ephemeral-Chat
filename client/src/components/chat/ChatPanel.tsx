@@ -162,8 +162,8 @@ export const ChatPanel = ({ user, messages, onSendMessage }: ChatPanelProps) => 
                     <div className={`flex flex-col max-w-xs lg:max-w-md ${isCurrentUser ? 'items-end' : 'items-start'}`}>
                       <div
                         className={`py-2 px-3 shadow-sm break-words ${isCurrentUser
-                            ? 'bg-blue-500 text-white rounded-lg rounded-br-none'
-                            : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg rounded-bl-none'
+                          ? 'bg-blue-500 text-white rounded-lg rounded-br-none'
+                          : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg rounded-bl-none'
                           }`}
                       >
                         <p className="text-sm whitespace-pre-wrap">{msg.content}</p>

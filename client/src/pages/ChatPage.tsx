@@ -4,6 +4,8 @@ import UserSidebar from "@/components/chat/UserSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect } from 'react';
 import { apiClient } from "@/lib/api";
+import { toast } from 'sonner';
+import { ConnectionStatus } from "@/components/ui/connection-status";
 
 interface User {
   id: string;
@@ -30,7 +32,7 @@ export const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // Receive message handler: only add if for active conversation
+  // Socket event handlers
   useEffect(() => {
     if (socket) {
       const handleReceiveMessage = (newMessage: Message) => {
@@ -42,9 +44,19 @@ export const ChatPage = () => {
           setMessages((prevMessages) => [...prevMessages, newMessage]);
         }
       };
+
+      const handleError = (error: { message: string }) => {
+        console.error('Socket error:', error);
+        toast.error(error.message || 'An error occurred');
+      };
       
       socket.on('receiveMessage', handleReceiveMessage);
-      return () => { socket.off('receiveMessage', handleReceiveMessage); };
+      socket.on('error', handleError);
+      
+      return () => { 
+        socket.off('receiveMessage', handleReceiveMessage);
+        socket.off('error', handleError);
+      };
     }
   }, [socket, selectedUser, currentUser]);
 
@@ -95,6 +107,7 @@ export const ChatPage = () => {
             selectedUser={selectedUser}
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={toggleSidebar}
+            currentUserId={currentUser?.id}
           />
         }
         mainPanel={
@@ -105,6 +118,10 @@ export const ChatPage = () => {
           />
         }
       />
+      {/* Connection Status Indicator */}
+      <div className="absolute top-4 right-4 z-10">
+        <ConnectionStatus />
+      </div>
     </div>
   );
 };
