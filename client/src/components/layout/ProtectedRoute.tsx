@@ -1,15 +1,27 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { LoadingSpinner } from './LoadingSpinner';
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { token } = useAuth();
+  const { token, user, isLoading } = useAuth();
+  const location = useLocation();
 
-  if (!token) {
-    // If there's no token, redirect the user to the login page
-    return <Navigate to="/login" />;
+  console.log('ProtectedRoute check:', { token: !!token, user: !!user, isLoading, path: location.pathname });
+
+  // Show loading spinner while validating authentication
+  if (isLoading) {
+    return <LoadingSpinner />;
   }
 
-  // If there is a token, render the child components (the protected page)
+  // Check both token and user to ensure complete authentication
+  if (!token || !user) {
+    console.log('Redirecting to login - missing token or user');
+    // Save the attempted location for redirect after login
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  console.log('Access granted to protected route');
+  // If there is a token and user, render the child components (the protected page)
   return <>{children}</>;
 };

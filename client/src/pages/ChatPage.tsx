@@ -1,11 +1,17 @@
-import { ChatLayout } from "@/components/chat/ChatLayout";
 import ChatPanel from "@/components/chat/ChatPanel";
 import UserSidebar from "@/components/chat/UserSidebar";
 import { useAuth } from "@/contexts/AuthContext";
+import { SidebarProvider } from "@/contexts/SidebarContext";
 import { useState, useEffect } from 'react';
 import { apiClient } from "@/lib/api";
 import { toast } from 'sonner';
 import { ConnectionStatus } from "@/components/ui/connection-status";
+import { SidebarInset } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { PanelLeft } from "lucide-react";
+import { useSidebar } from "@/contexts/SidebarContext";
+import { motion } from 'framer-motion';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface User {
   id: string;
@@ -26,11 +32,12 @@ interface Message {
   };
 }
 
-export const ChatPage = () => {
+const ChatPageContent = () => {
   const { socket, user: currentUser } = useAuth();
+  const { toggleSidebar, isCollapsed } = useSidebar();
+  const { themeConfig } = useTheme();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Socket event handlers
   useEffect(() => {
@@ -93,35 +100,65 @@ export const ChatPage = () => {
     setSelectedUser(user);
   };
 
-  const toggleSidebar = () => {
-    setIsSidebarCollapsed(!isSidebarCollapsed);
+  const headerVariants = {
+    initial: { opacity: 0, y: -20 },
+    animate: { 
+      opacity: 1, 
+      y: 0
+    }
+  };
+
+  const headerTransition = {
+    duration: themeConfig.animations ? 0.3 : 0,
+    ease: [0.4, 0.0, 0.2, 1] as const
   };
 
   return (
-    <div className="relative h-screen overflow-hidden">
-      <ChatLayout
-        isCollapsed={isSidebarCollapsed}
-        sidebar={
-          <UserSidebar 
-            onSelectUser={handleSelectUser}
-            selectedUser={selectedUser}
-            isCollapsed={isSidebarCollapsed}
-            onToggleCollapse={toggleSidebar}
-            currentUserId={currentUser?.id}
-          />
-        }
-        mainPanel={
+    <div className="flex h-screen w-full">
+      <UserSidebar 
+        onSelectUser={handleSelectUser}
+        selectedUser={selectedUser}
+        currentUserId={currentUser?.id}
+      />
+      <SidebarInset className="flex flex-col">
+        {/* Header with sidebar trigger */}
+        <motion.header 
+          className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+          variants={headerVariants}
+          initial="initial"
+          animate="animate"
+          transition={headerTransition}
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 -ml-1 hover:bg-accent"
+            onClick={toggleSidebar}
+          >
+            <PanelLeft className="h-4 w-4" />
+            <span className="sr-only">Toggle Sidebar</span>
+          </Button>
+          <div className="flex-1" />
+          <ConnectionStatus />
+        </motion.header>
+        
+        {/* Main chat panel */}
+        <div className="flex-1 overflow-hidden">
           <ChatPanel 
             user={selectedUser}
             messages={messages}
             onSendMessage={handleSendMessage}
           />
-        }
-      />
-      {/* Connection Status Indicator */}
-      <div className="absolute top-4 right-4 z-10">
-        <ConnectionStatus />
-      </div>
+        </div>
+      </SidebarInset>
     </div>
+  );
+};
+
+export const ChatPage = () => {
+  return (
+    <SidebarProvider>
+      <ChatPageContent />
+    </SidebarProvider>
   );
 };

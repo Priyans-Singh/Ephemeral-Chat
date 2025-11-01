@@ -18,13 +18,18 @@ export class WsJwtGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const client: Socket = context.switchToWs().getClient<Socket>();
     
+    // Check if socket is already authenticated from handleConnection
+    if (client.data.authenticated && client.data.user) {
+      this.logger.log(`Socket ${client.id}: Already authenticated for user ${client.data.user.displayName}`);
+      return true;
+    }
+
     try {
       const token = this.extractTokenFromHandshake(client);
       
       if (!token) {
         this.logger.warn(`Socket ${client.id}: No token provided`);
         client.emit('auth_error', { message: 'No authentication token provided' });
-        client.disconnect(true);
         return false;
       }
 
@@ -36,7 +41,6 @@ export class WsJwtGuard implements CanActivate {
       if (!payload || !payload.sub) {
         this.logger.warn(`Socket ${client.id}: Invalid token payload`);
         client.emit('auth_error', { message: 'Invalid token payload' });
-        client.disconnect(true);
         return false;
       }
 
@@ -45,13 +49,13 @@ export class WsJwtGuard implements CanActivate {
       if (!user) {
         this.logger.warn(`Socket ${client.id}: User not found for ID ${payload.sub}`);
         client.emit('auth_error', { message: 'User not found' });
-        client.disconnect(true);
         return false;
       }
 
       // Store user data in socket
       client.data.user = user;
       client.data.userId = user.id;
+      client.data.authenticated = true;
       
       this.logger.log(`Socket ${client.id}: Authentication successful for user ${user.displayName}`);
       return true;
@@ -68,7 +72,6 @@ export class WsJwtGuard implements CanActivate {
         client.emit('auth_error', { message: 'Authentication failed', code: 'AUTH_FAILED' });
       }
       
-      client.disconnect(true);
       return false;
     }
   }

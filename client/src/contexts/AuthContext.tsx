@@ -1,12 +1,13 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
 import { io, Socket } from 'socket.io-client';
-import { toast } from 'sonner';
+import { notificationService } from '@/lib/notification-service';
 
 interface AuthContextType {
   token: string | null;
   user: any;
   socket: Socket | null; // Add socket to our context
+  isLoading: boolean; // Add loading state
   login: (data: any) => Promise<void>;
   register: (data: any) => Promise<void>;
   logout: () => void;
@@ -15,17 +16,29 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(() => {
+    const storedToken = localStorage.getItem('token');
+    console.log('Initial token from localStorage:', !!storedToken);
+    return storedToken;
+  });
   const [user, setUser] = useState<any>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Start with loading true
 
   const logout = useCallback(() => {
     console.log('Logging out user');
+
+    // Clean up socket first
+    if (socket) {
+      socket.removeAllListeners();
+      socket.disconnect();
+    }
+
+    setSocket(null);
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
-    // Socket cleanup will be handled by the useEffect cleanup
-  }, []);
+  }, [socket]);
 
   useEffect(() => {
     let currentSocket: Socket | null = null;
@@ -33,18 +46,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (token) {
       console.log('Token found, initializing connection...');
 
-      // Fetch full user profile first
+      // Validate token and fetch user profile
       const fetchUserProfile = async () => {
         try {
+          console.log('Validating token and fetching user profile...');
           const response = await apiClient.get('/auth/profile');
+          console.log('User profile fetched successfully:', response.data);
           setUser(response.data);
           return response.data;
-        } catch (error) {
+        } catch (error: any) {
           console.error('Failed to fetch user profile:', error);
-          // Fallback to JWT decode
+
+          // If token is invalid/expired, clear it
+          if (error.response?.status === 401 || error.response?.status === 403) {
+            console.log('Token is invalid/expired, clearing auth state');
+            setUser(null);
+            setToken(null);
+            localStorage.removeItem('token');
+            return null;
+          }
+
+          // Fallback to JWT decode for network errors
           try {
+            console.log('Attempting JWT decode fallback...');
             const payload = JSON.parse(atob(token.split('.')[1]));
-            const fallbackUser = { id: payload.sub };
+
+            // Check if token is expired
+            const currentTime = Date.now() / 1000;
+            if (payload.exp && payload.exp < currentTime) {
+              console.log('Token is expired, clearing auth state');
+              setUser(null);
+              setToken(null);
+              localStorage.removeItem('token');
+              return null;
+            }
+
+            const fallbackUser = { id: payload.sub, displayName: payload.displayName || 'User' };
+            console.log('Using fallback user from JWT:', fallbackUser);
             setUser(fallbackUser);
             return fallbackUser;
           } catch (decodeError) {
@@ -79,10 +117,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           },
           autoConnect: true,
           reconnection: true,
-          reconnectionAttempts: 3,
-          reconnectionDelay: 2000,
-          timeout: 5000,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+          timeout: 10000,
           forceNew: true, // Force a new connection
+          transports: ['websocket'], // Use websocket only for better reliability
         });
 
         // Set up event handlers
@@ -92,12 +131,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         currentSocket.on('connection_confirmed', (data) => {
           console.log('✅ Connection confirmed:', data);
-          toast.success('Connected to chat server');
+          notificationService.connectionEstablished();
+          // Set socket state only after authentication is confirmed
+          setSocket(currentSocket);
         });
 
         currentSocket.on('auth_error', (error) => {
           console.error('❌ Auth error:', error);
-          toast.error(`Connection failed: ${error.message}`);
+          notificationService.error(`Connection failed: ${error.message}`);
+
+          // Clear socket state on auth error
+          setSocket(null);
 
           if (error.code === 'TOKEN_EXPIRED' || error.code === 'INVALID_TOKEN') {
             logout();
@@ -110,23 +154,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         currentSocket.on('disconnect', (reason) => {
           console.log('🔌 Socket disconnected:', reason);
+          // Clear socket state on disconnect
+          setSocket(null);
+
           if (reason === 'io server disconnect') {
-            toast.error('Disconnected from server');
+            notificationService.connectionLost();
+          } else if (reason === 'transport close' || reason === 'transport error') {
+            console.log('🔄 Connection lost, will attempt to reconnect...');
           }
         });
 
         currentSocket.on('reconnect', (attemptNumber) => {
           console.log('🔄 Reconnected after', attemptNumber, 'attempts');
-          toast.success('Reconnected to server');
+          notificationService.reconnected();
+          // Socket state will be set when connection_confirmed is received
         });
 
         currentSocket.on('reconnect_failed', () => {
           console.error('❌ Reconnection failed');
-          toast.error('Failed to reconnect');
+          notificationService.error('Failed to reconnect');
         });
 
-        // Update socket state
-        setSocket(currentSocket);
+        // Socket state will be set in the connect handler
       };
 
       // Start initialization
@@ -147,7 +196,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
       setSocket(null);
     };
-  }, [token, logout]);
+  }, [token]); // Remove logout from dependencies to prevent unnecessary re-runs
+
+  // Initial token validation on app startup
+  useEffect(() => {
+    const validateInitialToken = async () => {
+      const storedToken = localStorage.getItem('token');
+      if (storedToken && !user) {
+        console.log('Found stored token, validating...');
+        try {
+          const response = await apiClient.get('/auth/profile');
+          console.log('Token is valid, user:', response.data);
+          setUser(response.data);
+        } catch (error: any) {
+          console.log('Stored token is invalid, clearing...');
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+        }
+      }
+      setIsLoading(false); // Always set loading to false after validation
+    };
+
+    validateInitialToken();
+  }, []); // Run only once on mount
 
   const login = async (data: any) => {
     try {
@@ -156,8 +228,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setToken(access_token);
       localStorage.setItem('token', access_token);
     } catch (error: any) {
-      // Show an error toast
-      toast.error(error.response?.data?.message || 'Failed to login. Please check your credentials.');
+      // Show an error notification
+      notificationService.loginError(error.response?.data?.message || 'Failed to login. Please check your credentials.');
       throw error; // Re-throw the error so the component knows it failed
     }
   };
@@ -167,14 +239,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await apiClient.post('/auth/register', data);
       await login({ email: data.email, password: data.password });
     } catch (error: any) {
-      // Show an error toast
-      toast.error(error.response?.data?.message || 'Failed to register. Please try again.');
+      // Show an error notification
+      notificationService.signupError(error.response?.data?.message || 'Failed to register. Please try again.');
       throw error; // Re-throw the error
     }
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, socket, login, register, logout }}>
+    <AuthContext.Provider value={{ token, user, socket, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

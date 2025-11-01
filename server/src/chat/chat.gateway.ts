@@ -41,12 +41,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly jwtService: JwtService,
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   private broadcastUserList() {
     const userList = Array.from(this.connectedUsers.values()).map(user => ({
-        id: user.id,
-        displayName: user.displayName,
+      id: user.id,
+      displayName: user.displayName,
     }));
     this.server.emit('users', userList); // Broadcast the 'users' event with the list
   }
@@ -54,7 +54,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleConnection(client: Socket) {
     try {
       console.log(`🔌 Socket ${client.id}: Connection attempt`);
-      
+
       // Extract token from handshake
       const token = this.extractTokenFromHandshake(client);
       if (!token) {
@@ -85,9 +85,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      // Store user data in socket
+      // Store user data in socket - IMPORTANT: Mark as authenticated
       client.data.user = user;
       client.data.userId = user.id;
+      client.data.authenticated = true; // Add this flag
 
       console.log(`✅ Socket connected: ${client.id}, User: ${user.displayName}`);
 
@@ -104,10 +105,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Add user to our maps and broadcast the new list
       this.connectedUsers.set(user.id, user);
       this.userSockets.set(user.id, client.id);
-      this.broadcastUserList();
 
-      // Send connection confirmation
-      client.emit('connection_confirmed', { 
+      // Send connection confirmation FIRST
+      client.emit('connection_confirmed', {
         message: 'Successfully connected',
         user: {
           id: user.id,
@@ -115,9 +115,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
       });
 
+      // Then broadcast user list
+      this.broadcastUserList();
+
     } catch (error) {
       console.error(`Socket ${client.id}: Authentication failed`, error.message);
-      
+
       // Send specific error messages based on error type
       if (error.name === 'TokenExpiredError') {
         client.emit('auth_error', { message: 'Token expired', code: 'TOKEN_EXPIRED' });
@@ -126,7 +129,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       } else {
         client.emit('auth_error', { message: 'Authentication failed', code: 'AUTH_FAILED' });
       }
-      
+
       client.disconnect(true);
     }
   }
@@ -135,7 +138,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Try multiple sources for the token
     const authHeader = client.handshake.auth?.token;
     const queryToken = client.handshake.query?.token;
-    
+
     // Check auth header first
     if (authHeader) {
       const [type, token] = authHeader.split(' ');
@@ -143,12 +146,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return token;
       }
     }
-    
+
     // Fallback to query parameter
     if (typeof queryToken === 'string') {
       return queryToken;
     }
-    
+
     return undefined;
   }
 
@@ -174,19 +177,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private isRateLimited(userId: string): boolean {
     const now = Date.now();
     const timestamps = this.messageTimestamps.get(userId) || [];
-    
+
     // Remove timestamps older than 1 minute
     const recentTimestamps = timestamps.filter(timestamp => now - timestamp < 60000);
-    
+
     // Allow max 30 messages per minute
     if (recentTimestamps.length >= 30) {
       return true;
     }
-    
+
     // Add current timestamp and update the map
     recentTimestamps.push(now);
     this.messageTimestamps.set(userId, recentTimestamps);
-    
+
     return false;
   }
 

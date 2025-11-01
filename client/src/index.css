@@ -123,3 +123,78 @@
     height: 100%;
   }
 }
+
+/* Animation preferences and performance optimizations */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Respect system reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Hardware acceleration for better performance */
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Performance optimized animations */
+.animate-optimized {
+  will-change: transform, opacity;
+}
+
+.animate-optimized.complete {
+  will-change: auto;
+}
+
+/* Enhanced theme transitions */
+* {
+  transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+/* Custom accent color support */
+:root[style*="--accent-color"] {
+  --primary: var(--accent-color);
+}
+
+/* Focus and interaction states */
+.focus-visible {
+  @apply outline-2 outline-ring outline-offset-2;
+}
+
+/* Improved contrast for accessibility */
+@media (prefers-contrast: high) {
+  :root {
+    --border: oklch(0.5 0 0);
+    --ring: oklch(0.3 0 0);
+  }
+  
+  .dark {
+    --border: oklch(0.7 0 0);
+    --ring: oklch(0.8 0 0);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
