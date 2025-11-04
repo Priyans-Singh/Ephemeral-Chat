@@ -6,7 +6,6 @@ import { useState, useEffect } from 'react';
 import { apiClient } from "@/lib/api";
 import { toast } from 'sonner';
 import { ConnectionStatus } from "@/components/ui/connection-status";
-import { SidebarInset } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { PanelLeft } from "lucide-react";
 import { useSidebar } from "@/contexts/SidebarContext";
@@ -114,43 +113,49 @@ const ChatPageContent = () => {
   };
 
   return (
-    <div className="flex h-screen w-full">
-      <UserSidebar 
-        onSelectUser={handleSelectUser}
-        selectedUser={selectedUser}
-        currentUserId={currentUser?.id}
-      />
-      <SidebarInset className="flex flex-col">
-        {/* Header with sidebar trigger */}
-        <motion.header 
-          className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-          variants={headerVariants}
-          initial="initial"
-          animate="animate"
-          transition={headerTransition}
-        >
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7 -ml-1 hover:bg-accent"
-            onClick={toggleSidebar}
+    <div className="flex h-screen w-full bg-background overflow-hidden">
+      <div className={`border-r border-border flex flex-col h-full bg-sidebar shadow-sm transition-all duration-300 ${
+        isCollapsed ? 'w-20' : 'w-80'
+      }`}>
+        <UserSidebar 
+          onSelectUser={handleSelectUser}
+          selectedUser={selectedUser}
+          currentUserId={currentUser?.id}
+        />
+      </div>
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-background">
+        <div className="flex flex-col h-full">
+          {/* Header with sidebar trigger */}
+          <motion.header 
+            className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+            variants={headerVariants}
+            initial="initial"
+            animate="animate"
+            transition={headerTransition}
           >
-            <PanelLeft className="h-4 w-4" />
-            <span className="sr-only">Toggle Sidebar</span>
-          </Button>
-          <div className="flex-1" />
-          <ConnectionStatus />
-        </motion.header>
-        
-        {/* Main chat panel */}
-        <div className="flex-1 overflow-hidden">
-          <ChatPanel 
-            user={selectedUser}
-            messages={messages}
-            onSendMessage={handleSendMessage}
-          />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 -ml-1 hover:bg-accent"
+              onClick={toggleSidebar}
+            >
+              <PanelLeft className="h-4 w-4" />
+              <span className="sr-only">Toggle Sidebar</span>
+            </Button>
+            <div className="flex-1" />
+            <ConnectionStatus />
+          </motion.header>
+          
+          {/* Main chat panel */}
+          <div className="flex-1 overflow-hidden">
+            <ChatPanel 
+              user={selectedUser}
+              messages={messages}
+              onSendMessage={handleSendMessage}
+            />
+          </div>
         </div>
-      </SidebarInset>
+      </main>
     </div>
   );
 };

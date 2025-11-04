@@ -196,24 +196,18 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
       });
 
       // Listen for user presence updates
-      socket.on('userPresenceUpdate', (data: { userId: string; status: 'online' | 'away' | 'offline'; lastSeen?: string }) => {
-        presenceService.updatePresence({
-          userId: data.userId,
-          status: data.status,
-          lastSeen: data.lastSeen,
+      socket.on('userPresenceUpdate', (data: { userId: string; status: 'online' | 'away' | 'offline' }) => {
+        setUserPresence(prev => {
+          const newMap = new Map(prev);
+          newMap.set(data.userId, data.status);
+          return newMap;
         });
-      });
-
-      // Listen for typing events
-      socket.on('userTyping', (data: { userId: string; isTyping: boolean }) => {
-        presenceService.setTyping(data.userId, data.isTyping);
       });
 
       return () => {
         socket.off('users');
         socket.off('receiveMessage');
         socket.off('userPresenceUpdate');
-        socket.off('userTyping');
       };
     }
   }, [socket, user?.id, selectedUser?.id, currentUserId]);
@@ -234,17 +228,14 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
   );
 
   const groupedUsers = () => {
-    // Sort users by presence status first
-    const sortedUsers = presenceService.sortUsersByPresence(filteredUsers, (id) => userPresence.get(id) || null);
-    
     if (groupBy === 'none') {
-      return [{ label: 'All Users', users: sortedUsers }];
+      return [{ label: 'All Users', users: filteredUsers }];
     }
     
     if (groupBy === 'status') {
-      const online = sortedUsers.filter(u => userPresence.get(u.id)?.status === 'online');
-      const away = sortedUsers.filter(u => userPresence.get(u.id)?.status === 'away');
-      const offline = sortedUsers.filter(u => userPresence.get(u.id)?.status === 'offline');
+      const online = filteredUsers.filter(u => userPresence.get(u.id) === 'online');
+      const away = filteredUsers.filter(u => userPresence.get(u.id) === 'away');
+      const offline = filteredUsers.filter(u => userPresence.get(u.id) === 'offline');
       
       return [
         { label: 'Online', users: online },
@@ -254,8 +245,8 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
     }
     
     if (groupBy === 'unread') {
-      const withUnread = sortedUsers.filter(u => (unreadMessages.get(u.id) || 0) > 0);
-      const withoutUnread = sortedUsers.filter(u => (unreadMessages.get(u.id) || 0) === 0);
+      const withUnread = filteredUsers.filter(u => (unreadMessages.get(u.id) || 0) > 0);
+      const withoutUnread = filteredUsers.filter(u => (unreadMessages.get(u.id) || 0) === 0);
       
       return [
         { label: 'Unread Messages', users: withUnread },
@@ -263,46 +254,53 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
       ].filter(group => group.users.length > 0);
     }
     
-    return [{ label: 'All Users', users: sortedUsers }];
+    return [{ label: 'All Users', users: filteredUsers }];
   };
 
   // Removed unused function
 
   const getPresenceText = (userId: string) => {
-    const presence = userPresence.get(userId);
-    return presenceService.getPresenceText(presence || null);
+    const status = userPresence.get(userId) || 'online';
+    switch (status) {
+      case 'online': return 'Online';
+      case 'away': return 'Away';
+      case 'offline': return 'Last seen recently';
+      default: return 'Online';
+    }
   };
 
   return (
-    <AnimatedSidebar>
+    <div className="flex flex-col h-full bg-background">
       <div className="p-4 border-b">
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5" />
-          <AnimatedSidebarContent>
-            <span className="font-semibold">Chats</span>
-            <div className="ml-auto">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Filter className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setGroupBy('none')}>
-                    All Users
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setGroupBy('status')}>
-                    Group by Status
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setGroupBy('unread')}>
-                    Group by Unread
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </AnimatedSidebarContent>
+          {!isCollapsed && (
+            <>
+              <span className="font-semibold">Chats</span>
+              <div className="ml-auto">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Filter className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setGroupBy('none')}>
+                      All Users
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setGroupBy('status')}>
+                      Group by Status
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setGroupBy('unread')}>
+                      Group by Unread
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </>
+          )}
         </div>
-        <AnimatedSidebarContent>
+        {!isCollapsed && (
           <div className="mt-2">
             <Input
               placeholder="Search users..."
@@ -311,18 +309,18 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
               className="h-8"
             />
           </div>
-        </AnimatedSidebarContent>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <AnimatedContainer variant="fadeIn" stagger={true} staggerDelay={0.05}>
+        <div>
           {groupedUsers().map((group, groupIndex) => (
-            <AnimatedListItem key={groupIndex} className="p-2">
-              <AnimatedSidebarContent>
+            <div key={groupIndex} className="p-2">
+              {!isCollapsed && (
                 <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   {group.label}
                 </div>
-              </AnimatedSidebarContent>
+              )}
               <div className="space-y-1">
               {group.users.map((user) => {
                 const unreadCount = unreadMessages.get(user.id) || 0;
@@ -332,20 +330,15 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
                 const presenceText = getPresenceText(user.id);
                 
                 return (
-                  <AnimatedSidebarItem
+                  <Button
                     key={user.id}
-                    isActive={isActive}
-                    hasUnread={hasUnread}
+                    variant={isActive ? "secondary" : "ghost"}
                     onClick={() => onSelectUser(user)}
+                    className={`w-full justify-start h-auto p-2 transition-all duration-200 hover:scale-[1.02] ${
+                      hasUnread && !isActive ? 'bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800' : ''
+                    } ${isCollapsed ? 'px-2' : 'px-3'}`}
+                    title={isCollapsed ? `${user.displayName} (${presenceText})` : undefined}
                   >
-                    <Button
-                      variant={isActive ? "secondary" : "ghost"}
-                      className={`w-full justify-start h-auto p-2 transition-all duration-200 ${
-                        hasUnread && !isActive ? 'bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800' : ''
-                      } ${isCollapsed ? 'px-2' : 'px-3'}`}
-                      title={isCollapsed ? `${user.displayName} (${presenceText})` : undefined}
-                      animated={false}
-                    >
                     <div className="relative">
                       <Avatar className={`h-8 w-8 transition-all duration-200 ${
                         hasUnread ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-background' : ''
@@ -356,14 +349,9 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
                         />
                         <AvatarFallback className="text-xs">{getInitials(user.displayName)}</AvatarFallback>
                       </Avatar>
-                      <PresenceIndicator 
-                        userId={user.id} 
-                        presence={presence} 
-                        size="sm" 
-                        className="absolute -bottom-0.5 -right-0.5" 
-                      />
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 ${presence?.status === 'online' ? 'bg-green-500' : presence?.status === 'away' ? 'bg-yellow-500' : 'bg-gray-400'} rounded-full border-2 border-background transition-colors duration-200`}></div>
                     </div>
-                    <AnimatedSidebarContent>
+                    {!isCollapsed && (
                       <div className="flex-1 overflow-hidden ml-3 text-left">
                         <span className={`truncate block transition-all duration-200 ${
                           hasUnread && !isActive ? 'font-semibold' : 'font-medium'
@@ -381,7 +369,7 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
                           }
                         </p>
                       </div>
-                    </AnimatedSidebarContent>
+                    )}
                     {hasUnread && (
                       <div className={`bg-blue-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center ${
                         isCollapsed ? 'absolute -top-1 -right-1' : 'ml-auto'
@@ -389,14 +377,13 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
                         {unreadCount > 9 ? '9+' : unreadCount}
                       </div>
                     )}
-                    </Button>
-                  </AnimatedSidebarItem>
+                  </Button>
                 );
               })}
               </div>
-            </AnimatedListItem>
+            </div>
           ))}
-        </AnimatedContainer>
+        </div>
         
         {filteredUsers.length === 0 && (
           <div className="text-center text-muted-foreground py-8 px-2">
@@ -449,22 +436,14 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
         </DropdownMenu>
 
         {/* Settings with Theme Toggle */}
-        <SettingsDropdown 
-          isCollapsed={isCollapsed} 
-          onShowNotificationPrefs={() => setShowNotificationPrefs(true)}
-        />
+        <SettingsDropdown isCollapsed={isCollapsed} />
 
         {/* Logout */}
         <LogoutButton isCollapsed={isCollapsed} onLogout={logout} />
       </div>
 
-      {/* Notification Preferences Dialog */}
-      {showNotificationPrefs && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <NotificationPreferencesComponent onClose={() => setShowNotificationPrefs(false)} />
-        </div>
-      )}
-    </AnimatedSidebar>
+
+    </div>
   );
 };
 

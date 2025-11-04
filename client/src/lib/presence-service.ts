@@ -1,5 +1,16 @@
-// @ts-ignore - date-fns import issue
-import { formatDistanceToNow } from 'date-fns';
+// Simple date formatting without date-fns to avoid import issues
+const formatDistanceToNow = (date: Date): string => {
+  const now = new Date();
+  const diffInMs = now.getTime() - date.getTime();
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  const diffInDays = Math.floor(diffInHours / 24);
+
+  if (diffInMinutes < 1) return 'just now';
+  if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+  if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+  return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+};
 
 export type PresenceStatus = 'online' | 'away' | 'offline';
 
@@ -140,7 +151,7 @@ class PresenceService {
         return 'Away';
       case 'offline':
         if (presence.lastSeen) {
-          return `Last seen ${formatDistanceToNow(presence.lastSeen, { addSuffix: true })}`;
+          return `Last seen ${formatDistanceToNow(presence.lastSeen)}`;
         }
         return 'Offline';
       default:

@@ -1,3 +1,4 @@
+import React from 'react';
 import { toast } from 'sonner';
 import type { ExternalToast } from 'sonner';
 import { CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
@@ -121,7 +122,7 @@ class NotificationService {
     
     if (!this.shouldShowNotification(type)) return;
 
-    const Icon = showIcon ? this.getIcon(type) : undefined;
+    const IconComp = showIcon ? this.getIcon(type) : undefined;
     
     const baseOptions: ExternalToast = {
       duration: persistent ? Infinity : this.preferences.duration,
@@ -138,13 +139,13 @@ class NotificationService {
     if (cancel) {
       baseOptions.cancel = {
         label: cancel.label,
-        onClick: cancel.onClick,
+        onClick: () => cancel.onClick?.() ?? void 0,
       };
     }
 
-    // Add icon to description if provided
-    if (Icon && showIcon) {
-      baseOptions.icon = Icon;
+    // Add icon element if provided (Sonner expects a ReactNode, not a component type)
+    if (IconComp && showIcon) {
+      baseOptions.icon = React.createElement(IconComp, { className: 'size-4' });
     }
 
     switch (type) {
