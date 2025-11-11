@@ -17,9 +17,13 @@ export interface MessageData {
     id: string;
     displayName: string;
   };
-  recipient: {
+  recipient?: {
     id: string;
     displayName: string;
+  };
+  group?: {
+    id: string;
+    name: string;
   };
   status?: MessageStatusType;
 }
@@ -29,6 +33,7 @@ interface MessageBubbleProps {
   isCurrentUser: boolean;
   showAvatar?: boolean;
   showTimestamp?: boolean;
+  showSenderName?: boolean;
   className?: string;
 }
 
@@ -53,6 +58,7 @@ export const MessageBubble = ({
   isCurrentUser,
   showAvatar = true,
   showTimestamp = true,
+  showSenderName = false,
   className
 }: MessageBubbleProps) => {
   const messageDate = new Date(message.createdAt);
@@ -91,8 +97,8 @@ export const MessageBubble = ({
         "flex flex-col max-w-xs sm:max-w-sm lg:max-w-md xl:max-w-lg",
         isCurrentUser ? "items-end" : "items-start"
       )}>
-        {/* Sender name (only for received messages) */}
-        {!isCurrentUser && (
+        {/* Sender name (for group chats) */}
+        {showSenderName && (
           <div className="text-xs font-medium text-muted-foreground mb-1 px-1">
             {message.sender.displayName}
           </div>

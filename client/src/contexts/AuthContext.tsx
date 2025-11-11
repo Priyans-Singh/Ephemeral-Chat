@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 import { io, Socket } from 'socket.io-client';
 import { notificationService } from '@/lib/notification-service';
@@ -24,6 +24,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<any>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true); // Start with loading true
+  // Track connection attempts to dedupe events across StrictMode/reconnects
+  const latestAttemptRef = useRef(0);
+  const connectedAttemptRef = useRef<number | null>(null);
 
   const logout = useCallback(() => {
     console.log('Logging out user');
@@ -42,6 +45,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     let currentSocket: Socket | null = null;
+    // Bump attempt for each initialization caused by token change/mount
+    const attemptId = ++latestAttemptRef.current;
 
     if (token) {
       console.log('Token found, initializing connection...');

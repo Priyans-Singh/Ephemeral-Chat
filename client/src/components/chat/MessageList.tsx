@@ -16,13 +16,15 @@ interface MessageListProps {
   currentUserId?: string;
   typingUsers?: TypingUser[];
   className?: string;
+  isGroupChat?: boolean;
 }
 
 export const MessageList = ({ 
   messages, 
   currentUserId, 
   typingUsers = [],
-  className
+  className,
+  isGroupChat = false
 }: MessageListProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -143,6 +145,7 @@ export const MessageList = ({
                           isCurrentUser={isCurrentUser}
                           showAvatar={showAvatar}
                           showTimestamp={isLastFromSender}
+                          showSenderName={isGroupChat && !isCurrentUser}
                         />
                       </div>
                     );

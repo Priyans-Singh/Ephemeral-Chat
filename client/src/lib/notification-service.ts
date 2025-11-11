@@ -38,6 +38,9 @@ class NotificationService {
   private preferences: NotificationPrefs;
   private queue: Array<{ message: string; options: NotificationOptions }> = [];
   private isProcessingQueue = false;
+  // Dedup connection toasts across rapid mount/unmount and reconnects
+  private lastConnectionEstablishedAt = 0;
+  private lastConnectionLostAt = 0;
 
   constructor() {
     this.preferences = this.loadPreferences();
@@ -202,6 +205,14 @@ class NotificationService {
 
   // Connection-specific notifications
   public connectionEstablished() {
+    const now = Date.now();
+    // Suppress duplicates within 1.5s (e.g., StrictMode double-connect)
+    if (now - this.lastConnectionEstablishedAt < 1500) return;
+    this.lastConnectionEstablishedAt = now;
+    // If a persistent "lost" toast was just shown, clear it to reduce noise
+    if (now - this.lastConnectionLostAt < 1500) {
+      this.dismiss();
+    }
     this.success('Connected to chat server', {
       showIcon: true,
       duration: 2000,
@@ -209,6 +220,10 @@ class NotificationService {
   }
 
   public connectionLost() {
+    const now = Date.now();
+    // If we just connected very recently, this is likely a stale socket being closed → suppress
+    if (now - this.lastConnectionEstablishedAt < 1000) return;
+    this.lastConnectionLostAt = now;
     this.error('Connection lost', {
       showIcon: true,
       persistent: true,

@@ -14,8 +14,10 @@ import {
   User, 
   Palette,
   Bell,
-  Shield
+  Shield,
+  Plus
 } from 'lucide-react';
+import { CreateGroupModal } from './CreateGroupModal';
 
 import { 
   DropdownMenu,
@@ -39,6 +41,13 @@ interface OnlineUser {
     id: string;
     displayName: string;
 }
+
+interface Group {
+  id: string;
+  name: string;
+}
+
+type SelectedChat = { type: 'dm'; data: OnlineUser } | { type: 'group'; data: Group } | null;
 
 // Settings Dropdown Component
 const SettingsDropdown = ({ 
@@ -155,12 +164,13 @@ const LogoutButton = ({ isCollapsed, onLogout }: { isCollapsed: boolean; onLogou
 };
 
 interface UserSidebarProps {
-  onSelectUser: (user: OnlineUser) => void;
-  selectedUser: OnlineUser | null;
-  currentUserId?: string;
+  onSelectChat: (chat: SelectedChat) => void;
+  selectedChat: SelectedChat;
+  groups: Group[];
+  onGroupCreated: () => void;
 }
 
-const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarProps) => {
+const UserSidebar = ({ onSelectChat, selectedChat, groups, onGroupCreated }: UserSidebarProps) => {
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [unreadMessages, setUnreadMessages] = useState<Map<string, number>>(new Map());
   const [userPresence, setUserPresence] = useState<Map<string, 'online' | 'away' | 'offline'>>(new Map());
@@ -185,7 +195,7 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
       });
 
       socket.on('receiveMessage', (message: any) => {
-        if (message.sender.id !== selectedUser?.id && message.sender.id !== currentUserId) {
+        if (selectedChat?.type === 'dm' && message.sender.id !== selectedChat.data.id && message.sender.id !== user?.id) {
           setUnreadMessages(prev => {
             const newMap = new Map(prev);
             const currentCount = newMap.get(message.sender.id) || 0;
@@ -210,17 +220,17 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
         socket.off('userPresenceUpdate');
       };
     }
-  }, [socket, user?.id, selectedUser?.id, currentUserId]);
+  }, [socket, user?.id, selectedChat]);
 
   useEffect(() => {
-    if (selectedUser) {
+    if (selectedChat?.type === 'dm') {
       setUnreadMessages(prev => {
         const newMap = new Map(prev);
-        newMap.delete(selectedUser.id);
+        newMap.delete(selectedChat.data.id);
         return newMap;
       });
     }
-  }, [selectedUser]);
+  }, [selectedChat]);
 
   // Filter and group users
   const filteredUsers = onlineUsers.filter(user =>
@@ -310,22 +320,77 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
             />
           </div>
         )}
+        <div className="mt-2">
+          <CreateGroupModal socket={socket} onGroupCreated={onGroupCreated}>
+            <Button
+              variant="outline"
+              className={`w-full justify-start h-auto p-2 ${isCollapsed ? 'px-2' : 'px-3'}`}
+              title={isCollapsed ? "New Group" : undefined}
+            >
+              <Plus className="h-4 w-4" />
+              {!isCollapsed && <span className="ml-3">New Group</span>}
+            </Button>
+          </CreateGroupModal>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {/* Groups Section */}
+        <div className="p-2">
+          {!isCollapsed && (
+            <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Groups
+            </div>
+          )}
+          <div className="space-y-1">
+            {groups.map((group) => {
+              const isActive = selectedChat?.type === 'group' && selectedChat.data.id === group.id;
+              
+              return (
+                <Button
+                  key={group.id}
+                  variant={isActive ? "secondary" : "ghost"}
+                  onClick={() => onSelectChat({ type: 'group', data: group })}
+                  className={`w-full justify-start h-auto p-2 transition-all duration-200 hover:scale-[1.02] ${isCollapsed ? 'px-2' : 'px-3'}`}
+                  title={isCollapsed ? group.name : undefined}
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="text-xs bg-primary/10">
+                      <Users className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  {!isCollapsed && (
+                    <div className="flex-1 overflow-hidden ml-3 text-left">
+                      <span className="truncate block font-medium">
+                        {group.name}
+                      </span>
+                    </div>
+                  )}
+                </Button>
+              );
+            })}
+          </div>
+          {groups.length === 0 && !isCollapsed && (
+            <div className="text-center text-muted-foreground py-4 px-2">
+              <p className="text-xs">No groups yet</p>
+            </div>
+          )}
+        </div>
+
+        {/* Direct Messages Section */}
         <div>
           {groupedUsers().map((group, groupIndex) => (
             <div key={groupIndex} className="p-2">
               {!isCollapsed && (
                 <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  {group.label}
+                  {groupIndex === 0 ? 'Direct Messages' : group.label}
                 </div>
               )}
               <div className="space-y-1">
               {group.users.map((user) => {
                 const unreadCount = unreadMessages.get(user.id) || 0;
                 const hasUnread = unreadCount > 0;
-                const isActive = selectedUser?.id === user.id;
+                const isActive = selectedChat?.type === 'dm' && selectedChat.data.id === user.id;
                 const presence = userPresence.get(user.id);
                 const presenceText = getPresenceText(user.id);
                 
@@ -333,7 +398,7 @@ const UserSidebar = ({ onSelectUser, selectedUser, currentUserId }: UserSidebarP
                   <Button
                     key={user.id}
                     variant={isActive ? "secondary" : "ghost"}
-                    onClick={() => onSelectUser(user)}
+                    onClick={() => onSelectChat({ type: 'dm', data: user })}
                     className={`w-full justify-start h-auto p-2 transition-all duration-200 hover:scale-[1.02] ${
                       hasUnread && !isActive ? 'bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800' : ''
                     } ${isCollapsed ? 'px-2' : 'px-3'}`}

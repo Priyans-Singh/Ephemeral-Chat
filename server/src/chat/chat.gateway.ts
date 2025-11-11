@@ -14,8 +14,10 @@ import { Repository } from 'typeorm';
 import { WsJwtGuard } from './guards/ws-jwt.guard';
 import { User } from 'src/users/user.entity';
 import { Message } from './entities/message.entity';
+import { GroupMessage } from '../groups/entities/group-message.entity';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from 'src/users/users.service';
+import { GroupsService } from '../groups/groups.service';
 import { ConfigService } from '@nestjs/config';
 
 @WebSocketGateway({
@@ -38,10 +40,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     @InjectRepository(Message)
     private readonly messageRepository: Repository<Message>,
+    @InjectRepository(GroupMessage)
+    private readonly groupMessageRepository: Repository<GroupMessage>,
     private readonly jwtService: JwtService,
     private readonly usersService: UsersService,
+    private readonly groupsService: GroupsService,
     private readonly configService: ConfigService,
   ) { }
+
+  private getGroupRoomName(groupId: string): string {
+    return `group-${groupId}`;
+  }
 
   private broadcastUserList() {
     const userList = Array.from(this.connectedUsers.values()).map(user => ({
@@ -117,6 +126,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Then broadcast user list
       this.broadcastUserList();
+
+      // Join all group rooms for this user
+      try {
+        const groups = await this.groupsService.findGroupsForUser(user.id);
+        for (const group of groups) {
+          const roomName = this.getGroupRoomName(group.id);
+          client.join(roomName);
+          console.log(`User ${user.displayName} joined group room: ${roomName}`);
+        }
+      } catch (groupError) {
+        console.error(`Error joining group rooms for user ${user.displayName}:`, groupError);
+      }
 
     } catch (error) {
       console.error(`Socket ${client.id}: Authentication failed`, error.message);
@@ -284,6 +305,93 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } catch (error) {
       console.error(`Error handling message from socket ${client.id}:`, error);
       client.emit('error', { message: 'Failed to send message' });
+    }
+  }
+
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage('sendGroupMessage')
+  async handleGroupMessage(
+    @MessageBody() data: { groupId: string; content: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    try {
+      // Get the sender from client data
+      const sender = client.data.user;
+      if (!sender) {
+        console.warn(`Socket ${client.id} attempted to send group message without authentication`);
+        client.emit('error', { message: 'Authentication required' });
+        client.disconnect();
+        return;
+      }
+
+      // Rate limiting check
+      if (this.isRateLimited(sender.id)) {
+        console.warn(`Socket ${client.id} rate limited for user ${sender.displayName}`);
+        client.emit('error', { message: 'Too many messages. Please slow down.' });
+        return;
+      }
+
+      // Validate message data
+      if (!data.groupId || !data.content || typeof data.content !== 'string') {
+        console.warn(`Socket ${client.id} sent invalid group message data`);
+        client.emit('error', { message: 'Invalid message data' });
+        return;
+      }
+
+      // Sanitize message content
+      const sanitizedContent = data.content.trim();
+      if (sanitizedContent.length === 0) {
+        client.emit('error', { message: 'Message cannot be empty' });
+        return;
+      }
+
+      if (sanitizedContent.length > 1000) {
+        client.emit('error', { message: 'Message too long (max 1000 characters)' });
+        return;
+      }
+
+      // Verify the group exists and user is a member
+      const group = await this.groupsService.findOne(data.groupId);
+      if (!group) {
+        console.warn(`Socket ${client.id} attempted to send message to non-existent group: ${data.groupId}`);
+        client.emit('error', { message: 'Group not found' });
+        return;
+      }
+
+      // Create and save the group message
+      const groupMessage = this.groupMessageRepository.create({
+        content: sanitizedContent,
+        sender,
+        group,
+      });
+      const savedMessage = await this.groupMessageRepository.save(groupMessage);
+
+      // Fetch the saved message with relations loaded
+      const messageWithSender = await this.groupMessageRepository.findOneOrFail({
+        where: { id: savedMessage.id },
+        relations: ['sender', 'group'],
+      });
+
+      // Emit to the group room
+      const roomName = this.getGroupRoomName(data.groupId);
+      this.server.to(roomName).emit('receiveGroupMessage', {
+        id: messageWithSender.id,
+        content: messageWithSender.content,
+        createdAt: messageWithSender.createdAt,
+        sender: {
+          id: messageWithSender.sender.id,
+          displayName: messageWithSender.sender.displayName,
+        },
+        group: {
+          id: messageWithSender.group.id,
+          name: messageWithSender.group.name,
+        },
+      });
+
+      console.log(`Group message sent from ${sender.displayName} to group ${group.name}`);
+    } catch (error) {
+      console.error(`Error handling group message from socket ${client.id}:`, error);
+      client.emit('error', { message: 'Failed to send group message' });
     }
   }
 }

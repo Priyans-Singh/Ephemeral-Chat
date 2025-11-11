@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { User } from './user.entity';
 // No longer need to import CreateUserDto here
 
@@ -17,6 +17,13 @@ export class UsersService {
 
   async findOneByEmail(email: string): Promise<User | null> {
     return this.usersRepository.findOne({ where: { email } });
+  }
+
+  async findByIds(ids: string[]): Promise<User[]> {
+    if (!ids?.length) {
+      return [];
+    }
+    return this.usersRepository.find({ where: { id: In(ids) } });
   }
 
   // FIX: Change the parameter type to be more flexible

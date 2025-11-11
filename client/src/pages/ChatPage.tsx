@@ -2,7 +2,7 @@ import ChatPanel from "@/components/chat/ChatPanel";
 import UserSidebar from "@/components/chat/UserSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider } from "@/contexts/SidebarContext";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from "@/lib/api";
 import { toast } from 'sonner';
 import { ConnectionStatus } from "@/components/ui/connection-status";
@@ -11,42 +11,60 @@ import { PanelLeft } from "lucide-react";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { motion } from 'framer-motion';
 import { useTheme } from '@/contexts/ThemeContext';
+import type { MessageData } from "@/components/chat/MessageBubble";
 
 interface User {
   id: string;
   displayName: string;
 }
 
-interface Message {
+interface Group {
   id: string;
-  content: string;
-  createdAt: string;
-  sender: {
-    id: string;
-    displayName: string;
-  };
-  recipient: {
-    id: string;
-    displayName: string;
-  };
+  name: string;
 }
+
+type SelectedChat = { type: 'dm'; data: User } | { type: 'group'; data: Group } | null;
 
 const ChatPageContent = () => {
   const { socket, user: currentUser } = useAuth();
   const { toggleSidebar, isCollapsed } = useSidebar();
   const { themeConfig } = useTheme();
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedChat, setSelectedChat] = useState<SelectedChat>(null);
+  const [messages, setMessages] = useState<MessageData[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+
+  // Fetch groups
+  const fetchGroups = useCallback(async () => {
+    try {
+      const response = await apiClient.get<Group[]>('/groups');
+      setGroups(response.data);
+    } catch (error) {
+      console.error('Failed to fetch groups:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGroups();
+  }, [fetchGroups]);
 
   // Socket event handlers
   useEffect(() => {
     if (socket) {
-      const handleReceiveMessage = (newMessage: Message) => {
+      const handleReceiveMessage = (newMessage: MessageData) => {
         // Only add the message if it's part of the current conversation
         if (
-          (newMessage.sender.id === currentUser?.id && newMessage.recipient.id === selectedUser?.id) ||
-          (newMessage.sender.id === selectedUser?.id && newMessage.recipient.id === currentUser?.id)
+          selectedChat?.type === 'dm' &&
+          newMessage.recipient &&
+          ((newMessage.sender.id === currentUser?.id && newMessage.recipient.id === selectedChat.data.id) ||
+          (newMessage.sender.id === selectedChat.data.id && newMessage.recipient.id === currentUser?.id))
         ) {
+          setMessages((prevMessages) => [...prevMessages, newMessage]);
+        }
+      };
+
+      const handleReceiveGroupMessage = (newMessage: MessageData) => {
+        // Only add the message if it belongs to the selected group
+        if (selectedChat?.type === 'group' && newMessage.group && newMessage.group.id === selectedChat.data.id) {
           setMessages((prevMessages) => [...prevMessages, newMessage]);
         }
       };
@@ -57,46 +75,64 @@ const ChatPageContent = () => {
       };
       
       socket.on('receiveMessage', handleReceiveMessage);
+      socket.on('receiveGroupMessage', handleReceiveGroupMessage);
       socket.on('error', handleError);
       
       return () => { 
         socket.off('receiveMessage', handleReceiveMessage);
+        socket.off('receiveGroupMessage', handleReceiveGroupMessage);
         socket.off('error', handleError);
       };
     }
-  }, [socket, selectedUser, currentUser]);
+  }, [socket, selectedChat, currentUser]);
 
-  // Fetch history when selecting a user
+  // Fetch history when selecting a chat
   useEffect(() => {
     const fetchHistory = async () => {
-      if (selectedUser) {
+      if (selectedChat) {
         setMessages([]); // Clear previous messages
         try {
-          const response = await apiClient.get<Message[]>(`/chat/history/${selectedUser.id}`);
-          setMessages(response.data);
+          if (selectedChat.type === 'dm') {
+            const response = await apiClient.get<MessageData[]>(`/chat/history/${selectedChat.data.id}`);
+            setMessages(response.data);
+          } else if (selectedChat.type === 'group') {
+            // TODO: Add group message history API endpoint
+            console.log('Fetching group history for:', selectedChat.data.id);
+          }
         } catch (error) {
           console.error("Failed to fetch chat history:", error);
         }
       } else {
-        setMessages([]); // Clear messages when no user is selected
+        setMessages([]); // Clear messages when no chat is selected
       }
     };
     fetchHistory();
-  }, [selectedUser]);
+  }, [selectedChat]);
 
   const handleSendMessage = (content: string) => {
-    if (!socket || !selectedUser || !currentUser) {
+    if (!socket || !selectedChat || !currentUser) {
       return;
     }
     
-    socket.emit('sendMessage', {
-      to: selectedUser.id,
-      content,
-    });
+    if (selectedChat.type === 'dm') {
+      socket.emit('sendMessage', {
+        to: selectedChat.data.id,
+        content,
+      });
+    } else if (selectedChat.type === 'group') {
+      socket.emit('sendGroupMessage', {
+        groupId: selectedChat.data.id,
+        content,
+      });
+    }
   };
 
-  const handleSelectUser = (user: User) => {
-    setSelectedUser(user);
+  const handleSelectChat = (chat: SelectedChat) => {
+    setSelectedChat(chat);
+  };
+
+  const handleGroupCreated = () => {
+    fetchGroups();
   };
 
   const headerVariants = {
@@ -118,9 +154,10 @@ const ChatPageContent = () => {
         isCollapsed ? 'w-20' : 'w-80'
       }`}>
         <UserSidebar 
-          onSelectUser={handleSelectUser}
-          selectedUser={selectedUser}
-          currentUserId={currentUser?.id}
+          onSelectChat={handleSelectChat}
+          selectedChat={selectedChat}
+          groups={groups}
+          onGroupCreated={handleGroupCreated}
         />
       </div>
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-background">
@@ -149,7 +186,7 @@ const ChatPageContent = () => {
           {/* Main chat panel */}
           <div className="flex-1 overflow-hidden">
             <ChatPanel 
-              user={selectedUser}
+              selectedChat={selectedChat}
               messages={messages}
               onSendMessage={handleSendMessage}
             />
