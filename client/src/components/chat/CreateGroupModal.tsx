@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -7,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { Socket } from 'socket.io-client';
-import axios from 'axios';
+import { apiClient } from '@/lib/api';
 
 interface User {
   id: string;
@@ -23,25 +29,66 @@ interface CreateGroupModalProps {
 export function CreateGroupModal({ children, onGroupCreated, socket }: CreateGroupModalProps) {
   const [open, setOpen] = useState(false);
   const [groupName, setGroupName] = useState('');
-  const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user: currentUser } = useAuth();
 
+  // Fetch all users (minus the current user) whenever the dialog opens
   useEffect(() => {
-    if (!socket || !open) return;
+    let isMounted = true;
+
+    if (!open) {
+      return;
+    }
+
+    const fetchUsers = async () => {
+      setIsLoadingUsers(true);
+      setUsersError(null);
+      try {
+        const response = await apiClient.get<User[]>('/users');
+        if (!isMounted) return;
+        setAvailableUsers(response.data);
+      } catch (error) {
+        console.error('Failed to load users for group creation:', error);
+        if (isMounted) {
+          setUsersError('Failed to load users. Please try again.');
+          setAvailableUsers([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingUsers(false);
+        }
+      }
+    };
+
+    fetchUsers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [open]);
+
+  // Track online status to highlight currently active users
+  useEffect(() => {
+    if (!socket) {
+      return;
+    }
 
     const handleUsers = (users: User[]) => {
-      const filteredUsers = users.filter(u => u.id !== currentUser?.id);
-      setOnlineUsers(filteredUsers);
+      setOnlineUserIds(new Set(users.map((user) => user.id)));
     };
 
     socket.on('users', handleUsers);
+    socket.emit('requestUsers');
 
     return () => {
       socket.off('users', handleUsers);
     };
-  }, [socket, currentUser, open]);
+  }, [socket]);
 
   const handleToggleUser = (userId: string) => {
     const newSelected = new Set(selectedUserIds);
@@ -63,19 +110,10 @@ export function CreateGroupModal({ children, onGroupCreated, socket }: CreateGro
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(
-        'http://localhost:3000/groups',
-        {
-          name: groupName.trim(),
-          memberIds: Array.from(selectedUserIds),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      await apiClient.post('/groups', {
+        name: groupName.trim(),
+        memberIds: Array.from(selectedUserIds),
+      });
 
       setGroupName('');
       setSelectedUserIds(new Set());
@@ -111,25 +149,37 @@ export function CreateGroupModal({ children, onGroupCreated, socket }: CreateGro
           <div>
             <Label>Select Members</Label>
             <ScrollArea className="h-[200px] border rounded-md p-4 mt-2">
-              {onlineUsers.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No online users available</p>
+              {isLoadingUsers ? (
+                <p className="text-sm text-muted-foreground">Loading users...</p>
+              ) : usersError ? (
+                <p className="text-sm text-destructive">{usersError}</p>
+              ) : availableUsers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No users found</p>
               ) : (
                 <div className="space-y-3">
-                  {onlineUsers.map((user) => (
-                    <div key={user.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={user.id}
-                        checked={selectedUserIds.has(user.id)}
-                        onCheckedChange={() => handleToggleUser(user.id)}
-                      />
-                      <label
-                        htmlFor={user.id}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        {user.displayName}
-                      </label>
-                    </div>
-                  ))}
+                  {availableUsers.map((user) => {
+                    const isOnline = onlineUserIds.has(user.id);
+                    return (
+                      <div key={user.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={user.id}
+                          checked={selectedUserIds.has(user.id)}
+                          onCheckedChange={() => handleToggleUser(user.id)}
+                        />
+                        <label
+                          htmlFor={user.id}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1 flex justify-between items-center"
+                        >
+                          <span>{user.displayName}</span>
+                          <span
+                            className={`text-xs ${isOnline ? 'text-green-600' : 'text-muted-foreground'}`}
+                          >
+                            {isOnline ? 'Online' : 'Offline'}
+                          </span>
+                        </label>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </ScrollArea>

@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect, useCallback, use
 import { apiClient } from '@/lib/api';
 import { io, Socket } from 'socket.io-client';
 import { notificationService } from '@/lib/notification-service';
+import { tabSession } from '@/lib/tab-session';
 
 interface AuthContextType {
   token: string | null;
@@ -17,7 +18,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [token, setToken] = useState<string | null>(() => {
-    const storedToken = localStorage.getItem('token');
+    const storedToken = tabSession.getToken();
     console.log('Initial token from localStorage:', !!storedToken);
     return storedToken;
   });
@@ -40,7 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setSocket(null);
     setToken(null);
     setUser(null);
-    localStorage.removeItem('token');
+    tabSession.setToken(null);
   }, [socket]);
 
   useEffect(() => {
@@ -67,7 +68,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             console.log('Token is invalid/expired, clearing auth state');
             setUser(null);
             setToken(null);
-            localStorage.removeItem('token');
+            tabSession.setToken(null);
             return null;
           }
 
@@ -82,7 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               console.log('Token is expired, clearing auth state');
               setUser(null);
               setToken(null);
-              localStorage.removeItem('token');
+              tabSession.setToken(null);
               return null;
             }
 
@@ -94,7 +95,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             console.error('Failed to decode JWT:', decodeError);
             setUser(null);
             setToken(null);
-            localStorage.removeItem('token');
+            tabSession.setToken(null);
             return null;
           }
         }
@@ -206,7 +207,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Initial token validation on app startup
   useEffect(() => {
     const validateInitialToken = async () => {
-      const storedToken = localStorage.getItem('token');
+      const storedToken = tabSession.getToken();
       if (storedToken && !user) {
         console.log('Found stored token, validating...');
         try {
@@ -215,7 +216,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setUser(response.data);
         } catch (error: any) {
           console.log('Stored token is invalid, clearing...');
-          localStorage.removeItem('token');
+          tabSession.setToken(null);
           setToken(null);
           setUser(null);
         }
@@ -231,7 +232,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const response = await apiClient.post('/auth/login', data);
       const { access_token } = response.data;
       setToken(access_token);
-      localStorage.setItem('token', access_token);
+      tabSession.setToken(access_token);
     } catch (error: any) {
       // Show an error notification
       notificationService.loginError(error.response?.data?.message || 'Failed to login. Please check your credentials.');

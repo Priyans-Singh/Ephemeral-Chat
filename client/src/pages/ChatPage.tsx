@@ -1,5 +1,6 @@
 import ChatPanel from "@/components/chat/ChatPanel";
 import UserSidebar from "@/components/chat/UserSidebar";
+import { ChatLayout } from "@/components/chat/ChatLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider } from "@/contexts/SidebarContext";
 import { useState, useEffect, useCallback } from 'react';
@@ -7,11 +8,17 @@ import { apiClient } from "@/lib/api";
 import { toast } from 'sonner';
 import { ConnectionStatus } from "@/components/ui/connection-status";
 import { Button } from "@/components/ui/button";
-import { PanelLeft } from "lucide-react";
+import { PanelLeft, Menu } from "lucide-react";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { motion } from 'framer-motion';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { MessageData } from "@/components/chat/MessageBubble";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 interface User {
   id: string;
@@ -32,6 +39,7 @@ const ChatPageContent = () => {
   const [selectedChat, setSelectedChat] = useState<SelectedChat>(null);
   const [messages, setMessages] = useState<MessageData[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Fetch groups
   const fetchGroups = useCallback(async () => {
@@ -129,6 +137,7 @@ const ChatPageContent = () => {
 
   const handleSelectChat = (chat: SelectedChat) => {
     setSelectedChat(chat);
+    setMobileMenuOpen(false); // Close mobile menu when chat is selected
   };
 
   const handleGroupCreated = () => {
@@ -148,52 +157,83 @@ const ChatPageContent = () => {
     ease: [0.4, 0.0, 0.2, 1] as const
   };
 
-  return (
-    <div className="flex h-screen w-full bg-background overflow-hidden">
-      <div className={`border-r border-border flex flex-col h-full bg-sidebar shadow-sm transition-all duration-300 ${
-        isCollapsed ? 'w-20' : 'w-80'
-      }`}>
-        <UserSidebar 
-          onSelectChat={handleSelectChat}
+  const sidebarContent = (
+    <UserSidebar 
+      onSelectChat={handleSelectChat}
+      selectedChat={selectedChat}
+      groups={groups}
+      onGroupCreated={handleGroupCreated}
+    />
+  );
+
+  const mainContent = (
+    <div className="flex flex-col h-full w-full">
+      {/* Header with sidebar trigger and connection status */}
+      <motion.header 
+        className="flex h-14 md:h-16 shrink-0 items-center gap-2 border-b border-border px-3 md:px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        variants={headerVariants}
+        initial="initial"
+        animate="animate"
+        transition={headerTransition}
+      >
+        {/* Desktop sidebar toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden md:flex size-8 hover:bg-accent"
+          onClick={toggleSidebar}
+        >
+          <PanelLeft className="h-4 w-4" />
+          <span className="sr-only">Toggle Sidebar</span>
+        </Button>
+
+        {/* Mobile menu toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="flex md:hidden size-8 hover:bg-accent"
+          onClick={() => setMobileMenuOpen(true)}
+        >
+          <Menu className="h-5 w-5" />
+          <span className="sr-only">Open Menu</span>
+        </Button>
+
+        <div className="flex-1" />
+        <ConnectionStatus />
+      </motion.header>
+      
+      {/* Main chat panel */}
+      <div className="flex-1 overflow-hidden min-h-0">
+        <ChatPanel 
           selectedChat={selectedChat}
-          groups={groups}
-          onGroupCreated={handleGroupCreated}
+          messages={messages}
+          onSendMessage={handleSendMessage}
         />
       </div>
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-background">
-        <div className="flex flex-col h-full">
-          {/* Header with sidebar trigger */}
-          <motion.header 
-            className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-            variants={headerVariants}
-            initial="initial"
-            animate="animate"
-            transition={headerTransition}
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 -ml-1 hover:bg-accent"
-              onClick={toggleSidebar}
-            >
-              <PanelLeft className="h-4 w-4" />
-              <span className="sr-only">Toggle Sidebar</span>
-            </Button>
-            <div className="flex-1" />
-            <ConnectionStatus />
-          </motion.header>
-          
-          {/* Main chat panel */}
-          <div className="flex-1 overflow-hidden">
-            <ChatPanel 
-              selectedChat={selectedChat}
-              messages={messages}
-              onSendMessage={handleSendMessage}
-            />
-          </div>
-        </div>
-      </main>
     </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Layout */}
+      <div className="h-screen w-full overflow-hidden">
+        <ChatLayout
+          sidebar={sidebarContent}
+          mainPanel={mainContent}
+          isCollapsed={isCollapsed}
+        />
+      </div>
+
+      {/* Mobile Sidebar Sheet */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Navigation Menu</SheetTitle>
+          </SheetHeader>
+          {sidebarContent}
+        </SheetContent>
+      </Sheet>
+    </>
   );
 };
 

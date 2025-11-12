@@ -67,7 +67,7 @@ export const MessageBubble = ({
   return (
     <motion.div
       className={cn(
-        "flex items-end gap-3 group",
+        "flex items-end gap-2 md:gap-3 group w-full",
         isCurrentUser ? "flex-row-reverse" : "flex-row",
         className
       )}
@@ -79,8 +79,9 @@ export const MessageBubble = ({
           initial={shouldAnimate ? { scale: 0 } : { scale: 1 }}
           animate={{ scale: 1 }}
           transition={{ delay: 0.1, duration: 0.2 }}
+          className="flex-shrink-0"
         >
-          <Avatar className="h-8 w-8 flex-shrink-0 ring-2 ring-background">
+          <Avatar className="h-7 w-7 md:h-8 md:w-8 ring-2 ring-background">
             <AvatarImage
               src={`https://api.dicebear.com/8.x/lorelei/svg?seed=${message.sender.displayName}`}
               alt={message.sender.displayName}
@@ -92,14 +93,17 @@ export const MessageBubble = ({
         </motion.div>
       )}
 
+      {/* Spacer when avatar is not shown */}
+      {!showAvatar && <div className="w-7 md:w-8 flex-shrink-0" />}
+
       {/* Message Content */}
       <div className={cn(
-        "flex flex-col max-w-xs sm:max-w-sm lg:max-w-md xl:max-w-lg",
+        "flex flex-col max-w-[75%] sm:max-w-[70%] md:max-w-md lg:max-w-lg xl:max-w-xl min-w-0",
         isCurrentUser ? "items-end" : "items-start"
       )}>
         {/* Sender name (for group chats) */}
         {showSenderName && (
-          <div className="text-xs font-medium text-muted-foreground mb-1 px-1">
+          <div className="text-xs font-medium text-muted-foreground mb-1 px-1 truncate max-w-full">
             {message.sender.displayName}
           </div>
         )}
@@ -108,9 +112,9 @@ export const MessageBubble = ({
         <motion.div
           {...(shouldAnimate ? getHoverProps() : {})}
           className={cn(
-            "relative py-3 px-4 shadow-sm break-words rounded-2xl",
+            "relative py-2 px-3 md:py-3 md:px-4 shadow-sm break-words rounded-2xl",
             "transition-all duration-200 ease-out",
-            "hover:shadow-md",
+            "hover:shadow-md w-fit",
             isCurrentUser
               ? cn(
                   "bg-gradient-to-br from-blue-500 to-blue-600 text-white",
@@ -125,7 +129,7 @@ export const MessageBubble = ({
           )}
         >
           {/* Message content */}
-          <p className="text-sm leading-relaxed whitespace-pre-wrap font-medium">
+          <p className="text-sm md:text-base leading-relaxed whitespace-pre-wrap font-medium break-words">
             {message.content}
           </p>
 

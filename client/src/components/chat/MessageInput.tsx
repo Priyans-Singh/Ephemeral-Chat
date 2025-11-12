@@ -181,7 +181,7 @@ export const MessageInput = ({
 
   return (
     <motion.div
-      className={cn("space-y-2", className)}
+      className={cn("space-y-2 w-full", className)}
       {...getEntranceProps('slideUp')}
     >
       {/* Character count indicator */}
@@ -216,8 +216,8 @@ export const MessageInput = ({
       />
 
       {/* Input form */}
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
-        <div className="flex-1 relative">
+      <form onSubmit={handleSubmit} className="flex items-end gap-2 w-full">
+        <div className="flex-1 relative min-w-0">
           <textarea
             ref={textareaRef}
             value={inputValue}
@@ -242,7 +242,7 @@ export const MessageInput = ({
           />
           
           {/* Emoji picker */}
-          <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 z-10">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           </div>
           
@@ -267,13 +267,14 @@ export const MessageInput = ({
           whileHover={shouldAnimate && canSend ? { scale: 1.05 } : {}}
           whileTap={shouldAnimate && canSend ? { scale: 0.95 } : {}}
           transition={{ duration: 0.1 }}
+          className="flex-shrink-0"
         >
           <Button
             type="submit"
             size="sm"
             disabled={!canSend}
             aria-label="Send message"
-            className="h-10 w-10 p-0 shrink-0 transition-all duration-200"
+            className="h-10 w-10 p-0 transition-all duration-200"
             animated={false}
           >
           <AnimatePresence mode="wait">

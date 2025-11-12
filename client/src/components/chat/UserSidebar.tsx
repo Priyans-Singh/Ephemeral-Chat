@@ -183,44 +183,61 @@ const UserSidebar = ({ onSelectChat, selectedChat, groups, onGroupCreated }: Use
 
 
   useEffect(() => {
-    if (socket) {
-      socket.on('users', (users: OnlineUser[]) => {
-        const otherUsers = users.filter(u => u.id !== user?.id);
-        setOnlineUsers(otherUsers);
-        
-        // Set all users as online initially
-        const presenceMap = new Map();
-        otherUsers.forEach(u => presenceMap.set(u.id, 'online'));
-        setUserPresence(presenceMap);
-      });
+    if (!socket) {
+      setOnlineUsers([]);
+      setUserPresence(new Map());
+      return;
+    }
 
-      socket.on('receiveMessage', (message: any) => {
-        if (selectedChat?.type === 'dm' && message.sender.id !== selectedChat.data.id && message.sender.id !== user?.id) {
-          setUnreadMessages(prev => {
-            const newMap = new Map(prev);
-            const currentCount = newMap.get(message.sender.id) || 0;
-            newMap.set(message.sender.id, currentCount + 1);
-            return newMap;
-          });
-        }
-      });
+    const handleUsers = (users: OnlineUser[]) => {
+      const otherUsers = users.filter(u => u.id !== user?.id);
+      setOnlineUsers(otherUsers);
 
-      // Listen for user presence updates
-      socket.on('userPresenceUpdate', (data: { userId: string; status: 'online' | 'away' | 'offline' }) => {
-        setUserPresence(prev => {
+      const presenceMap = new Map<string, 'online' | 'away' | 'offline'>();
+      otherUsers.forEach(u => presenceMap.set(u.id, 'online'));
+      setUserPresence(presenceMap);
+    };
+
+    socket.on('users', handleUsers);
+    socket.emit('requestUsers');
+
+    return () => {
+      socket.off('users', handleUsers);
+    };
+  }, [socket, user?.id]);
+
+  useEffect(() => {
+    if (!socket) {
+      return;
+    }
+
+    const handleIncomingMessage = (message: any) => {
+      if (selectedChat?.type === 'dm' && message.sender.id !== selectedChat.data.id && message.sender.id !== user?.id) {
+        setUnreadMessages(prev => {
           const newMap = new Map(prev);
-          newMap.set(data.userId, data.status);
+          const currentCount = newMap.get(message.sender.id) || 0;
+          newMap.set(message.sender.id, currentCount + 1);
           return newMap;
         });
-      });
+      }
+    };
 
-      return () => {
-        socket.off('users');
-        socket.off('receiveMessage');
-        socket.off('userPresenceUpdate');
-      };
-    }
-  }, [socket, user?.id, selectedChat]);
+    const handlePresenceUpdate = (data: { userId: string; status: 'online' | 'away' | 'offline' }) => {
+      setUserPresence(prev => {
+        const newMap = new Map(prev);
+        newMap.set(data.userId, data.status);
+        return newMap;
+      });
+    };
+
+    socket.on('receiveMessage', handleIncomingMessage);
+    socket.on('userPresenceUpdate', handlePresenceUpdate);
+
+    return () => {
+      socket.off('receiveMessage', handleIncomingMessage);
+      socket.off('userPresenceUpdate', handlePresenceUpdate);
+    };
+  }, [socket, selectedChat, user?.id]);
 
   useEffect(() => {
     if (selectedChat?.type === 'dm') {

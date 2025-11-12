@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { tabSession } from './tab-session';
 
 export const apiClient = axios.create({
   baseURL: 'http://localhost:3000',
@@ -7,7 +8,7 @@ export const apiClient = axios.create({
 // Add a request interceptor to include the token
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = tabSession.getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

@@ -119,15 +119,18 @@ export const ChatPanel = ({ selectedChat, messages, onSendMessage }: ChatPanelPr
   const chatName = selectedChat.type === 'dm' ? selectedChat.data.displayName : selectedChat.data.name;
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-background w-full">
       {/* Chat Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="flex-shrink-0 p-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        className="flex-shrink-0 px-4 py-3 md:px-6 md:py-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
       >
-        <h2 className="text-xl font-bold text-foreground">{chatName}</h2>
+        <div className="flex items-center gap-3">
+          {/* Mobile back button could go here */}
+          <h2 className="text-lg md:text-xl font-bold text-foreground truncate">{chatName}</h2>
+        </div>
       </motion.header>
 
       {/* Messages Area */}
@@ -135,12 +138,12 @@ export const ChatPanel = ({ selectedChat, messages, onSendMessage }: ChatPanelPr
         messages={messages}
         currentUserId={currentUser?.id}
         typingUsers={typingUsers}
-        className="flex-1"
+        className="flex-1 min-h-0"
         isGroupChat={selectedChat.type === 'group'}
       />
 
       {/* Message Input */}
-      <footer className="flex-shrink-0 p-4 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <footer className="flex-shrink-0 px-3 py-3 md:px-6 md:py-4 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <MessageInput
           onSendMessage={handleSendMessage}
           onTypingStart={handleTypingStart}

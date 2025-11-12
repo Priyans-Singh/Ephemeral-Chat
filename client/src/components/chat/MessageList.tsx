@@ -100,11 +100,11 @@ export const MessageList = ({
 
   return (
     <ScrollArea 
-      className={cn("flex-1 overflow-hidden", className)} 
+      className={cn("flex-1 overflow-hidden w-full", className)} 
       ref={scrollAreaRef}
       onScrollCapture={handleScroll}
     >
-      <div className="p-4 space-y-1 min-h-full">
+      <div className="px-3 py-4 md:px-6 md:py-6 space-y-1 min-h-full">
         <AnimatePresence initial={false}>
           {Object.entries(groupedMessages).map(([dateString, dayMessages]) => {
             const date = new Date(dateString);
@@ -119,7 +119,7 @@ export const MessageList = ({
               >
                 <DateSeparator date={date} />
                 
-                <div className="space-y-3">
+                <div className="space-y-2 md:space-y-3">
                   {dayMessages.map((message, index) => {
                     const isCurrentUser = message.sender.id === currentUserId;
                     const prevMessage = index > 0 ? dayMessages[index - 1] : null;
@@ -136,8 +136,8 @@ export const MessageList = ({
                       <div
                         key={message.id}
                         className={cn(
-                          isNewSender && "mt-4",
-                          isLastFromSender && "mb-2"
+                          isNewSender && "mt-3 md:mt-4",
+                          isLastFromSender && "mb-1 md:mb-2"
                         )}
                       >
                         <MessageBubble
@@ -172,7 +172,7 @@ export const MessageList = ({
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
             transition={{ duration: 0.2 }}
             onClick={() => scrollToBottom()}
-            className="fixed bottom-20 right-6 z-10 bg-primary text-primary-foreground rounded-full p-3 shadow-lg hover:shadow-xl transition-shadow duration-200 hover:scale-105"
+            className="fixed bottom-24 md:bottom-28 right-4 md:right-8 z-10 bg-primary text-primary-foreground rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
             aria-label="Scroll to bottom"
           >
             <svg

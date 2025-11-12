@@ -52,12 +52,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return `group-${groupId}`;
   }
 
-  private broadcastUserList() {
-    const userList = Array.from(this.connectedUsers.values()).map(user => ({
+  private getConnectedUserSummaries() {
+    return Array.from(this.connectedUsers.values()).map(user => ({
       id: user.id,
       displayName: user.displayName,
     }));
-    this.server.emit('users', userList); // Broadcast the 'users' event with the list
+  }
+
+  private broadcastUserList() {
+    this.server.emit('users', this.getConnectedUserSummaries());
+  }
+
+  private sendUserListToClient(client: Socket) {
+    client.emit('users', this.getConnectedUserSummaries());
   }
 
   async handleConnection(client: Socket) {
@@ -126,6 +133,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Then broadcast user list
       this.broadcastUserList();
+      this.sendUserListToClient(client);
 
       // Join all group rooms for this user
       try {
@@ -212,6 +220,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.messageTimestamps.set(userId, recentTimestamps);
 
     return false;
+  }
+
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage('requestUsers')
+  handleUserListRequest(@ConnectedSocket() client: Socket) {
+    if (!client?.data?.authenticated) {
+      client.emit('auth_error', { message: 'Authentication required', code: 'AUTH_REQUIRED' });
+      return;
+    }
+    this.sendUserListToClient(client);
   }
 
   @UseGuards(WsJwtGuard)

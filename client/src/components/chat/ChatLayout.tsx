@@ -33,7 +33,8 @@ export const ChatLayout = ({
       <motion.aside 
         className={cn(
           "border-r border-border flex flex-col h-full bg-sidebar",
-          "shadow-sm"
+          "shadow-sm flex-shrink-0",
+          "hidden md:flex" // Hide on mobile, show on tablets and up
         )}
         variants={sidebarVariants}
         animate={isCollapsed ? 'collapsed' : 'expanded'}
@@ -42,7 +43,7 @@ export const ChatLayout = ({
       >
         {sidebar}
       </motion.aside>
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-background">
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-background w-full md:w-auto">
         {mainPanel}
       </main>
     </div>
